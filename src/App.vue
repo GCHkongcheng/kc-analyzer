@@ -122,7 +122,7 @@ import { ref } from "vue";
 // 引入 Monaco Editor 组件
 import { VueMonacoEditor } from "@guolao/vue-monaco-editor";
 
-const API_URL = "https://你的worker地址.workers.dev";
+const API_URL = "https://kc-analyzer.gc2839474636.workers.dev";
 
 const codeContent = ref(`class Solution {
 public:
