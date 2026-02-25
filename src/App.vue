@@ -1,32 +1,25 @@
 <template>
   <div class="analyzer-container">
-    <h2 class="page-title">🚀 AI 算法解析引擎</h2>
+    <div class="header-section">
+      <h2 class="page-title">🚀 AI 算法解析引擎</h2>
+      <el-button
+        type="primary"
+        plain
+        class="history-btn"
+        @click="showHistory = true"
+      >
+        <el-icon><Clock /></el-icon>
+        <span class="btn-text">历史记录</span>
+      </el-button>
+    </div>
 
     <el-row :gutter="20">
       <el-col :xs="24" :md="10">
-        <el-card shadow="hover" class="box-card">
-          <template #header>
-            <div class="card-header">
-              <span>👨‍💻 算法代码</span>
-              <el-button
-                type="primary"
-                :loading="isLoading"
-                @click="analyzeCode"
-              >
-                开始解析
-              </el-button>
-            </div>
-          </template>
-
-          <div class="editor-wrapper">
-            <vue-monaco-editor
-              v-model:value="codeContent"
-              theme="vs-dark"
-              language="cpp"
-              :options="editorOptions"
-            />
-          </div>
-        </el-card>
+        <CodeEditor
+          v-model:code="codeContent"
+          :loading="isLoading"
+          @analyze="handleAnalyze"
+        />
 
         <el-alert
           v-if="errorMessage"
@@ -34,95 +27,46 @@
           type="error"
           show-icon
           class="mt-4"
-        />
+          :closable="true"
+          @close="
+            errorMessage = '';
+            errorDetails = null;
+          "
+        >
+          <template v-if="errorDetails" #default>
+            <el-collapse accordion style="margin-top: 10px">
+              <el-collapse-item title="查看详细错误信息" name="1">
+                <pre class="error-details">{{
+                  JSON.stringify(errorDetails, null, 2)
+                }}</pre>
+              </el-collapse-item>
+            </el-collapse>
+          </template>
+        </el-alert>
       </el-col>
 
       <el-col :xs="24" :md="14">
-        <el-empty
-          v-if="!resultData && !isLoading"
-          description="等待输入代码进行解析..."
-        />
-        <el-skeleton :rows="10" animated v-if="isLoading" class="mt-4" />
-
-        <div v-if="resultData && !isLoading" class="result-area">
-          <el-row :gutter="15" class="mb-4">
-            <el-col :span="12">
-              <el-card shadow="never" class="metric-card">
-                <div class="metric-title">⏱️ 时间复杂度</div>
-                <div class="metric-value">{{ resultData.complexity.time }}</div>
-              </el-card>
-            </el-col>
-            <el-col :span="12">
-              <el-card shadow="never" class="metric-card">
-                <div class="metric-title">💾 空间复杂度</div>
-                <div class="metric-value">
-                  {{ resultData.complexity.space }}
-                </div>
-              </el-card>
-            </el-col>
-            <el-col :span="24" class="mt-2">
-              <el-alert
-                :title="resultData.complexity.explanation"
-                type="info"
-                :closable="false"
-              />
-            </el-col>
-          </el-row>
-
-          <el-card shadow="hover" class="timeline-card mb-4">
-            <template #header>
-              <span>🔍 运行步骤推演 (代入实值)</span>
-              <el-tag type="success" style="float: right">{{
-                resultData.language
-              }}</el-tag>
-            </template>
-
-            <el-timeline>
-              <el-timeline-item
-                v-for="step in resultData.step_by_step"
-                :key="step.step"
-                :timestamp="`Step ${step.step}`"
-                placement="top"
-                type="primary"
-              >
-                <el-card shadow="never" class="step-card">
-                  <h4>{{ step.action }}</h4>
-                  <p class="description">{{ step.description }}</p>
-                  <div class="meta-info">
-                    <el-tag size="small" type="warning" effect="plain">
-                      📍 代码: {{ step.line_number }}
-                    </el-tag>
-                    <div class="variables">
-                      <code>{{ step.variables }}</code>
-                    </div>
-                  </div>
-                </el-card>
-              </el-timeline-item>
-            </el-timeline>
-          </el-card>
-
-          <el-card shadow="hover">
-            <template #header
-              ><span
-                >💡 优化建议 (评级: {{ resultData.rating }})</span
-              ></template
-            >
-            <p style="line-height: 1.6; color: #606266">
-              {{ resultData.optimization }}
-            </p>
-          </el-card>
-        </div>
+        <ResultPanel :resultData="resultData" :loading="isLoading" />
       </el-col>
     </el-row>
+
+    <!-- 历史记录抽屉 -->
+    <HistoryDrawer v-model="showHistory" @load="handleLoadHistory" />
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
-// 引入 Monaco Editor 组件
-import { VueMonacoEditor } from "@guolao/vue-monaco-editor";
+import { Clock } from "@element-plus/icons-vue";
+import CodeEditor from "./components/CodeEditor.vue";
+import ResultPanel from "./components/ResultPanel.vue";
+import HistoryDrawer from "./components/HistoryDrawer.vue";
+import { HistoryManager } from "./utils/historyManager.js";
 
-const API_URL = "https://kc-analyzer.gc2839474636.workers.dev";
+// 从环境变量读取 API URL
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://kc-analyzer.gc2839474636.workers.dev";
 
 const codeContent = ref(`class Solution {
 public:
@@ -151,26 +95,41 @@ public:
 const isLoading = ref(false);
 const resultData = ref(null);
 const errorMessage = ref("");
+const errorDetails = ref(null);
+const showHistory = ref(false);
+const currentLanguage = ref("cpp"); // 追踪当前语言
 
-// Monaco 编辑器配置参数
-const editorOptions = ref({
-  automaticLayout: true, // 自动适配父容器大小
-  minimap: { enabled: false }, // 关闭右侧小地图，让主代码区更宽敞
-  fontSize: 15, // 字体大小
-  fontFamily: "Fira Code, Consolas, monospace",
-  scrollBeyondLastLine: false, // 消除代码底部大段空白
-  wordWrap: "on", // 自动换行
-  renderLineHighlight: "all", // 高亮当前行
-});
+// 防抖定时器
+let debounceTimer = null;
 
+// 防抖函数：防止用户快速多次点击
+const debounce = (fn, delay = 500) => {
+  return (...args) => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      fn(...args);
+    }, delay);
+  };
+};
+
+// 实际的分析函数
 const analyzeCode = async () => {
   if (!codeContent.value.trim()) {
     errorMessage.value = "代码不能为空哦！";
+    errorDetails.value = null;
+    return;
+  }
+
+  // 防止重复请求
+  if (isLoading.value) {
     return;
   }
 
   isLoading.value = true;
   errorMessage.value = "";
+  errorDetails.value = null;
   resultData.value = null;
 
   try {
@@ -180,16 +139,43 @@ const analyzeCode = async () => {
       body: JSON.stringify({ code: codeContent.value }),
     });
     const data = await response.json();
+
     if (!response.ok || data.status === "error") {
-      throw new Error(data.message || "解析失败");
+      // 提取错误信息和详情
+      errorMessage.value = data.message || `请求失败 (HTTP ${response.status})`;
+      errorDetails.value = data.details || data;
+      return;
     }
+
     resultData.value = data;
+
+    // 保存到历史记录
+    HistoryManager.save({
+      code: codeContent.value,
+      language: data.language || currentLanguage.value,
+      result: data,
+    });
   } catch (error) {
-    errorMessage.value = error.message;
+    errorMessage.value = `网络错误: ${error.message}`;
+    errorDetails.value = {
+      error: error.toString(),
+      stack: error.stack,
+      apiUrl: API_URL,
+    };
   } finally {
     isLoading.value = false;
   }
 };
+
+// 从历史记录加载
+const handleLoadHistory = (record) => {
+  codeContent.value = record.code;
+  currentLanguage.value = record.language;
+  resultData.value = record.result;
+};
+
+// 带防抖的分析处理函数
+const handleAnalyze = debounce(analyzeCode, 300);
 </script>
 
 <style scoped>
@@ -197,77 +183,109 @@ const analyzeCode = async () => {
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
+  min-height: 100vh;
 }
-.page-title {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #303133;
-}
-.card-header {
+
+.header-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: bold;
+  margin-bottom: 30px;
 }
 
-/* 必须给 Monaco 编辑器一个外层确定的高度 */
-.editor-wrapper {
-  height: 600px;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #ebeef5;
+.page-title {
+  margin: 0;
+  color: #303133;
+  font-size: 28px;
+  font-weight: bold;
+  animation: slideDown 0.5s ease-out;
+}
+
+.history-btn {
+  gap: 6px;
+}
+
+.history-btn .btn-text {
+  display: inline;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mt-4 {
   margin-top: 16px;
 }
-.mt-2 {
-  margin-top: 8px;
-}
-.mb-4 {
-  margin-bottom: 16px;
-}
 
-.metric-card {
-  text-align: center;
-  background-color: #f8f9fa;
-}
-.metric-title {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 8px;
-}
-.metric-value {
-  font-size: 20px;
-  font-weight: bold;
-  color: #409eff;
-}
-
-.step-card {
-  margin-bottom: 5px;
-}
-.step-card h4 {
-  margin: 0 0 10px 0;
-  color: #303133;
-}
-.description {
-  color: #606266;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-.meta-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.variables {
-  background-color: #282c34;
-  color: #98c379; /* 变成代码高亮的绿色，视觉上更清晰 */
-  padding: 8px 12px;
+.error-details {
+  background-color: #f5f5f5;
+  padding: 12px;
   border-radius: 4px;
-  font-family: Consolas, monospace;
-  font-size: 14px;
-  font-weight: bold;
+  font-size: 12px;
+  color: #606266;
   overflow-x: auto;
+  max-height: 300px;
+  line-height: 1.5;
+}
+
+/* 平板适配 */
+@media (max-width: 992px) {
+  .analyzer-container {
+    padding: 15px;
+  }
+
+  .page-title {
+    font-size: 24px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .analyzer-container {
+    padding: 12px;
+  }
+
+  .header-section {
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  .history-btn .btn-text {
+    display: none;
+  }
+
+  :deep(.el-row) {
+    margin: 0 !important;
+  }
+
+  :deep(.el-col) {
+    padding: 0 !important;
+    margin-bottom: 15px;
+  }
+}
+
+/* 小屏手机适配 */
+@media (max-width: 480px) {
+  .analyzer-container {
+    padding: 8px;
+  }
+
+  .header-section {
+    margin-bottom: 15px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
 }
 </style>
