@@ -2,15 +2,37 @@
   <div class="analyzer-container">
     <div class="header-section">
       <h2 class="page-title">🚀 AI 算法解析引擎</h2>
-      <el-button
-        type="primary"
-        plain
-        class="history-btn"
-        @click="showHistory = true"
-      >
-        <el-icon><Clock /></el-icon>
-        <span class="btn-text">历史记录</span>
-      </el-button>
+      <div class="header-actions">
+        <el-button
+          type="primary"
+          plain
+          class="action-btn"
+          @click="showHistory = true"
+        >
+          <el-icon><Clock /></el-icon>
+          <span class="btn-text">历史记录</span>
+        </el-button>
+        <el-button
+          :type="isDark ? 'warning' : 'info'"
+          plain
+          class="action-btn"
+          @click="toggleTheme"
+        >
+          <el-icon>
+            <component :is="isDark ? Sunny : Moon" />
+          </el-icon>
+          <span class="btn-text">{{ isDark ? "浅色" : "深色" }}</span>
+        </el-button>
+        <el-button
+          type="success"
+          plain
+          class="action-btn"
+          @click="showAbout = true"
+        >
+          <el-icon><InfoFilled /></el-icon>
+          <span class="btn-text">关于</span>
+        </el-button>
+      </div>
     </div>
 
     <el-row :gutter="20">
@@ -18,6 +40,7 @@
         <CodeEditor
           v-model:code="codeContent"
           :loading="isLoading"
+          :theme="isDark ? 'dark' : 'light'"
           @analyze="handleAnalyze"
         />
 
@@ -52,16 +75,21 @@
 
     <!-- 历史记录抽屉 -->
     <HistoryDrawer v-model="showHistory" @load="handleLoadHistory" />
+
+    <!-- 关于对话框 -->
+    <AboutDialog v-model="showAbout" />
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { Clock } from "@element-plus/icons-vue";
+import { ref, onMounted } from "vue";
+import { Clock, Sunny, Moon, InfoFilled } from "@element-plus/icons-vue";
 import CodeEditor from "./components/CodeEditor.vue";
 import ResultPanel from "./components/ResultPanel.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
+import AboutDialog from "./components/AboutDialog.vue";
 import { HistoryManager } from "./utils/historyManager.js";
+import { ThemeManager } from "./utils/themeManager.js";
 
 // 从环境变量读取 API URL
 const API_URL =
@@ -97,6 +125,8 @@ const resultData = ref(null);
 const errorMessage = ref("");
 const errorDetails = ref(null);
 const showHistory = ref(false);
+const showAbout = ref(false);
+const isDark = ref(false);
 const currentLanguage = ref("cpp"); // 追踪当前语言
 
 // 防抖定时器
@@ -174,6 +204,23 @@ const handleLoadHistory = (record) => {
   resultData.value = record.result;
 };
 
+// 主题切换
+const toggleTheme = () => {
+  const newTheme = ThemeManager.toggleTheme();
+  isDark.value = newTheme === ThemeManager.THEMES.DARK;
+};
+
+// 初始化主题
+onMounted(() => {
+  ThemeManager.init();
+  isDark.value = ThemeManager.getCurrentTheme() === ThemeManager.THEMES.DARK;
+
+  // 监听主题变化
+  window.addEventListener("theme-changed", (e) => {
+    isDark.value = e.detail.theme === ThemeManager.THEMES.DARK;
+  });
+});
+
 // 带防抖的分析处理函数
 const handleAnalyze = debounce(analyzeCode, 300);
 </script>
@@ -184,6 +231,7 @@ const handleAnalyze = debounce(analyzeCode, 300);
   max-width: 1400px;
   margin: 0 auto;
   min-height: 100vh;
+  transition: background-color 0.3s ease;
 }
 
 .header-section {
@@ -195,17 +243,23 @@ const handleAnalyze = debounce(analyzeCode, 300);
 
 .page-title {
   margin: 0;
-  color: #303133;
+  color: var(--text-color, #303133);
   font-size: 28px;
   font-weight: bold;
   animation: slideDown 0.5s ease-out;
 }
 
-.history-btn {
-  gap: 6px;
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.history-btn .btn-text {
+.action-btn {
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.action-btn .btn-text {
   display: inline;
 }
 
@@ -225,11 +279,11 @@ const handleAnalyze = debounce(analyzeCode, 300);
 }
 
 .error-details {
-  background-color: #f5f5f5;
+  background-color: var(--hover-bg, #f5f5f5);
   padding: 12px;
   border-radius: 4px;
   font-size: 12px;
-  color: #606266;
+  color: var(--text-color, #606266);
   overflow-x: auto;
   max-height: 300px;
   line-height: 1.5;
@@ -254,13 +308,25 @@ const handleAnalyze = debounce(analyzeCode, 300);
 
   .header-section {
     margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .page-title {
     font-size: 20px;
+    width: 100%;
   }
 
-  .history-btn .btn-text {
+  .header-actions {
+    gap: 8px;
+  }
+
+  .action-btn {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  .action-btn .btn-text {
     display: none;
   }
 

@@ -66,7 +66,7 @@
       <vue-monaco-editor
         v-if="editorReady"
         v-model:value="localCode"
-        theme="vs-dark"
+        :theme="monacoTheme"
         :language="selectedLanguage"
         :options="editorOptions"
         @mount="handleEditorMount"
@@ -109,6 +109,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  theme: {
+    type: String,
+    default: "light", // 'light' 或 'dark'
+  },
 });
 
 const emit = defineEmits(["update:code", "analyze"]);
@@ -117,6 +121,11 @@ const selectedLanguage = ref("cpp");
 const localCode = ref(props.code);
 const selectedExample = ref("");
 const editorReady = ref(false);
+
+// Monaco Editor 主题映射
+const monacoTheme = computed(() => {
+  return props.theme === "dark" ? "vs-dark" : "vs";
+});
 
 // 支持的语言列表
 const languages = [

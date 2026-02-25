@@ -188,7 +188,7 @@ await fetch(API_URL, {
 如有问题或建议，欢迎通过以下方式联系：
 
 - 提交 [GitHub Issue](https://github.com/GCHkongcheng/kc-analyzer/issues)
-- 邮箱: your-email@example.com
+- 邮箱: 2839474636@qq.com
 
 ---
 
