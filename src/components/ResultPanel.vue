@@ -56,7 +56,31 @@
 
       <ComplexityMetric :complexity="resultData.complexity" />
 
+      <!-- 视图切换按钮 -->
+      <div class="view-switcher">
+        <el-radio-group v-model="currentView" size="default">
+          <el-radio-button label="timeline">
+            <el-icon><List /></el-icon>
+            执行步骤
+          </el-radio-button>
+          <el-radio-button label="visualizer">
+            <el-icon><VideoPlay /></el-icon>
+            动画演示
+          </el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <!-- 数组可视化 -->
+      <ArrayVisualizer
+        v-if="currentView === 'visualizer' && shouldShowVisualizer"
+        :steps="resultData.step_by_step"
+        :initial-data="extractInitialData()"
+        visualization-type="array"
+      />
+
+      <!-- 执行步骤时间轴 -->
       <StepTimeline
+        v-if="currentView === 'timeline'"
         :steps="resultData.step_by_step"
         :language="resultData.language"
       />
@@ -79,11 +103,18 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
-import { Loading, DocumentCopy, CopyDocument } from "@element-plus/icons-vue";
+import { ref, watch, computed } from "vue";
+import {
+  Loading,
+  DocumentCopy,
+  CopyDocument,
+  List,
+  VideoPlay,
+} from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import ComplexityMetric from "./ComplexityMetric.vue";
 import StepTimeline from "./StepTimeline.vue";
+import ArrayVisualizer from "./ArrayVisualizer.vue";
 
 const props = defineProps({
   resultData: {
@@ -106,6 +137,7 @@ const loadingSteps = [
 
 const currentStep = ref(0);
 const loadingProgress = ref(0);
+const currentView = ref("timeline"); // timeline 或 visualizer
 
 // 加载动画循环
 let stepInterval = null;
@@ -162,6 +194,39 @@ const getRatingType = (rating) => {
   if (rating?.includes("合格")) return "primary";
   if (rating?.includes("需优化")) return "warning";
   return "info";
+};
+
+// 判断是否显示可视化组件
+const shouldShowVisualizer = computed(() => {
+  if (!props.resultData?.step_by_step) return false;
+
+  // 检查是否包含数组操作的关键词
+  const keywords = ["交换", "比较", "swap", "compare", "排序", "sort"];
+  const hasArrayOps = props.resultData.step_by_step.some((step) =>
+    keywords.some(
+      (keyword) =>
+        step.action?.toLowerCase().includes(keyword.toLowerCase()) ||
+        step.description?.toLowerCase().includes(keyword.toLowerCase()),
+    ),
+  );
+
+  return hasArrayOps;
+});
+
+// 提取初始数据
+const extractInitialData = () => {
+  // 尝试从第一个步骤的 variables 中提取数组
+  if (props.resultData?.step_by_step?.[0]?.variables) {
+    const vars = props.resultData.step_by_step[0].variables;
+    // 尝试匹配常见的数组变量名
+    const arrayMatch = String(vars).match(/\[([\d,\s]+)\]/);
+    if (arrayMatch) {
+      return arrayMatch[1].split(",").map((n) => parseInt(n.trim()));
+    }
+  }
+
+  // 默认样例数据
+  return [5, 2, 8, 1, 9, 3, 7, 4, 6];
 };
 
 // 生成 Markdown 格式内容
@@ -382,6 +447,23 @@ const copyAsText = async () => {
 
 .optimization-card {
   margin-top: 16px;
+}
+
+.view-switcher {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.view-switcher :deep(.el-radio-button) {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.view-switcher :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
 }
 
 .optimization-header {
