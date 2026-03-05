@@ -49,8 +49,9 @@ export default defineConfig({
   // 服务器配置
   server: {
     // 端口
-    port: 5173,
+    port: 5174,
     // 启动时自动打开浏览器
+    // host: "172.18.0.1",
     open: false,
     // 代理配置（如果需要）
     // proxy: {

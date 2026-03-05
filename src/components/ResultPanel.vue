@@ -40,34 +40,36 @@
 
     <!-- 结果展示 -->
     <div v-if="resultData && !loading" class="result-area">
-      <!-- 操作按钮栏 -->
-      <div class="action-bar">
-        <el-button-group>
-          <el-button type="primary" plain @click="copyAsMarkdown">
-            <el-icon><DocumentCopy /></el-icon>
-            复制 Markdown
-          </el-button>
-          <el-button type="success" plain @click="copyAsText">
-            <el-icon><CopyDocument /></el-icon>
-            复制纯文本
-          </el-button>
-        </el-button-group>
-      </div>
+      <div class="result-sticky-summary">
+        <!-- 操作按钮栏 -->
+        <div class="action-bar">
+          <el-button-group>
+            <el-button type="primary" plain @click="copyAsMarkdown">
+              <el-icon><DocumentCopy /></el-icon>
+              复制 Markdown
+            </el-button>
+            <el-button type="success" plain @click="copyAsText">
+              <el-icon><CopyDocument /></el-icon>
+              复制纯文本
+            </el-button>
+          </el-button-group>
+        </div>
 
-      <ComplexityMetric :complexity="resultData.complexity" />
+        <ComplexityMetric :complexity="resultData.complexity" />
 
-      <!-- 视图切换按钮 -->
-      <div class="view-switcher">
-        <el-radio-group v-model="currentView" size="default">
-          <el-radio-button label="timeline">
-            <el-icon><List /></el-icon>
-            执行步骤
-          </el-radio-button>
-          <el-radio-button label="visualizer">
-            <el-icon><VideoPlay /></el-icon>
-            动画演示
-          </el-radio-button>
-        </el-radio-group>
+        <!-- 视图切换按钮 -->
+        <div class="view-switcher">
+          <el-radio-group v-model="currentView" size="default">
+            <el-radio-button label="timeline">
+              <el-icon><List /></el-icon>
+              执行步骤
+            </el-radio-button>
+            <el-radio-button label="visualizer">
+              <el-icon><VideoPlay /></el-icon>
+              动画演示
+            </el-radio-button>
+          </el-radio-group>
+        </div>
       </div>
 
       <!-- 数组可视化 -->
@@ -434,6 +436,14 @@ const copyAsText = async () => {
   animation: fadeIn 0.4s ease-in;
 }
 
+.result-sticky-summary {
+  position: sticky;
+  top: 8px;
+  z-index: 10;
+  background-color: var(--card-bg, #ffffff);
+  padding-top: 2px;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -483,6 +493,11 @@ const copyAsText = async () => {
 @media (max-width: 768px) {
   .result-panel {
     min-height: 300px;
+  }
+
+  .result-sticky-summary {
+    position: static;
+    top: auto;
   }
 
   .action-bar {

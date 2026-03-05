@@ -6,7 +6,7 @@
         <el-button
           type="primary"
           plain
-          class="action-btn"
+          class="action-btn desktop-action"
           @click="showHistory = true"
         >
           <el-icon><Clock /></el-icon>
@@ -15,7 +15,7 @@
         <el-button
           :type="isDark ? 'warning' : 'info'"
           plain
-          class="action-btn"
+          class="action-btn desktop-action"
           @click="toggleTheme"
         >
           <el-icon>
@@ -26,52 +26,103 @@
         <el-button
           type="success"
           plain
-          class="action-btn"
+          class="action-btn desktop-action"
           @click="showAbout = true"
         >
           <el-icon><InfoFilled /></el-icon>
           <span class="btn-text">关于</span>
         </el-button>
+
+        <el-dropdown class="mobile-actions" @command="handleMobileAction">
+          <el-button type="primary" plain class="action-btn">
+            <el-icon><MoreFilled /></el-icon>
+            <span class="btn-text">更多</span>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="history">历史记录</el-dropdown-item>
+              <el-dropdown-item command="theme">
+                {{ isDark ? "切换浅色" : "切换深色" }}
+              </el-dropdown-item>
+              <el-dropdown-item command="about">关于</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
-    <el-row :gutter="20">
-      <el-col :xs="24" :md="10">
-        <CodeEditor
-          v-model:code="codeContent"
-          :loading="isLoading"
-          :theme="isDark ? 'dark' : 'light'"
-          @analyze="handleAnalyze"
-        />
+    <el-menu
+      mode="horizontal"
+      :default-active="activeModule"
+      class="module-menu"
+      @select="handleModuleSelect"
+    >
+      <el-menu-item index="workspace">
+        <el-icon><House /></el-icon>
+        分析工作台
+      </el-menu-item>
+      <el-menu-item index="library">
+        <el-icon><Collection /></el-icon>
+        算法库
+      </el-menu-item>
+      <el-menu-item index="settings">
+        <el-icon><Setting /></el-icon>
+        系统设置
+      </el-menu-item>
+    </el-menu>
 
-        <el-alert
-          v-if="errorMessage"
-          :title="errorMessage"
-          type="error"
-          show-icon
-          class="mt-4"
-          :closable="true"
-          @close="
-            errorMessage = '';
-            errorDetails = null;
-          "
-        >
-          <template v-if="errorDetails" #default>
-            <el-collapse accordion style="margin-top: 10px">
-              <el-collapse-item title="查看详细错误信息" name="1">
-                <pre class="error-details">{{
-                  JSON.stringify(errorDetails, null, 2)
-                }}</pre>
-              </el-collapse-item>
-            </el-collapse>
-          </template>
-        </el-alert>
-      </el-col>
+    <section v-if="activeModule === 'workspace'">
+      <el-row :gutter="20" class="workspace-layout">
+        <el-col :xs="24" :md="10" class="workspace-col code-col">
+          <CodeEditor
+            v-model:code="codeContent"
+            :loading="isLoading"
+            :theme="isDark ? 'dark' : 'light'"
+            @analyze="handleAnalyze"
+          />
 
-      <el-col :xs="24" :md="14">
-        <ResultPanel :resultData="resultData" :loading="isLoading" />
-      </el-col>
-    </el-row>
+          <el-alert
+            v-if="errorMessage"
+            :title="errorMessage"
+            type="error"
+            show-icon
+            class="mt-4"
+            :closable="true"
+            @close="
+              errorMessage = '';
+              errorDetails = null;
+            "
+          >
+            <template v-if="errorDetails" #default>
+              <el-collapse accordion style="margin-top: 10px">
+                <el-collapse-item title="查看详细错误信息" name="1">
+                  <pre class="error-details">{{
+                    JSON.stringify(errorDetails, null, 2)
+                  }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </template>
+          </el-alert>
+        </el-col>
+
+        <el-col :xs="24" :md="14" class="workspace-col result-col">
+          <ResultPanel :resultData="resultData" :loading="isLoading" />
+        </el-col>
+      </el-row>
+    </section>
+
+    <section v-else-if="activeModule === 'library'">
+      <AlgorithmLibrary @load-example="handleLoadExampleFromLibrary" />
+    </section>
+
+    <section v-else-if="activeModule === 'settings'">
+      <SystemSettings
+        :theme="isDark ? 'dark' : 'light'"
+        :api-url-override="apiUrlOverride"
+        @update-theme="handleThemeFromSettings"
+        @update-api-url="handleApiUrlUpdate"
+      />
+    </section>
 
     <!-- 历史记录抽屉 -->
     <HistoryDrawer v-model="showHistory" @load="handleLoadHistory" />
@@ -82,17 +133,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { Clock, Sunny, Moon, InfoFilled } from "@element-plus/icons-vue";
+import { ref, onMounted, computed } from "vue";
+import {
+  Clock,
+  Sunny,
+  Moon,
+  InfoFilled,
+  House,
+  Collection,
+  Setting,
+  MoreFilled,
+} from "@element-plus/icons-vue";
 import CodeEditor from "./components/CodeEditor.vue";
 import ResultPanel from "./components/ResultPanel.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
 import AboutDialog from "./components/AboutDialog.vue";
+import AlgorithmLibrary from "./components/AlgorithmLibrary.vue";
+import SystemSettings from "./components/SystemSettings.vue";
 import { HistoryManager } from "./utils/historyManager.js";
 import { ThemeManager } from "./utils/themeManager.js";
 
 // 从环境变量读取 API URL
-const API_URL =
+const ENV_API_URL =
   import.meta.env.VITE_API_URL ||
   "https://kc-analyzer.gc2839474636.workers.dev";
 
@@ -128,6 +190,11 @@ const showHistory = ref(false);
 const showAbout = ref(false);
 const isDark = ref(false);
 const currentLanguage = ref("cpp"); // 追踪当前语言
+const activeModule = ref("workspace");
+const apiUrlOverride = ref(
+  localStorage.getItem("kc_analyzer_api_url_override") || "",
+);
+const apiUrl = computed(() => apiUrlOverride.value || ENV_API_URL);
 
 // 防抖定时器
 let debounceTimer = null;
@@ -163,7 +230,7 @@ const analyzeCode = async () => {
   resultData.value = null;
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(apiUrl.value, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: codeContent.value }),
@@ -190,7 +257,7 @@ const analyzeCode = async () => {
     errorDetails.value = {
       error: error.toString(),
       stack: error.stack,
-      apiUrl: API_URL,
+      apiUrl: apiUrl.value,
     };
   } finally {
     isLoading.value = false;
@@ -202,6 +269,44 @@ const handleLoadHistory = (record) => {
   codeContent.value = record.code;
   currentLanguage.value = record.language;
   resultData.value = record.result;
+  activeModule.value = "workspace";
+};
+
+const handleModuleSelect = (index) => {
+  activeModule.value = index;
+};
+
+const handleLoadExampleFromLibrary = (item) => {
+  codeContent.value = item.code;
+  currentLanguage.value = item.language;
+  resultData.value = null;
+  errorMessage.value = "";
+  errorDetails.value = null;
+  activeModule.value = "workspace";
+};
+
+const handleThemeFromSettings = (theme) => {
+  isDark.value = theme === ThemeManager.THEMES.DARK;
+};
+
+const handleApiUrlUpdate = (url) => {
+  apiUrlOverride.value = url;
+};
+
+const handleMobileAction = (command) => {
+  if (command === "history") {
+    showHistory.value = true;
+    return;
+  }
+
+  if (command === "theme") {
+    toggleTheme();
+    return;
+  }
+
+  if (command === "about") {
+    showAbout.value = true;
+  }
 };
 
 // 主题切换
@@ -252,6 +357,32 @@ const handleAnalyze = debounce(analyzeCode, 300);
 .header-actions {
   display: flex;
   gap: 12px;
+}
+
+.module-menu {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: var(--card-bg, #ffffff);
+}
+
+.mobile-actions {
+  display: none;
+}
+
+.workspace-layout {
+  align-items: flex-start;
+}
+
+@media (min-width: 993px) {
+  .workspace-col {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
 }
 
 .action-btn {
@@ -319,6 +450,14 @@ const handleAnalyze = debounce(analyzeCode, 300);
 
   .header-actions {
     gap: 8px;
+  }
+
+  .desktop-action {
+    display: none;
+  }
+
+  .mobile-actions {
+    display: inline-flex;
   }
 
   .action-btn {
