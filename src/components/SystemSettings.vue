@@ -12,13 +12,50 @@
         </el-radio-group>
       </el-form-item>
 
-      <el-form-item label="API 地址覆盖">
+      <el-form-item label="后端网关 URL">
         <el-input
           v-model="localApiUrl"
-          placeholder="留空使用 .env 的 VITE_API_URL"
+          placeholder="填写 Worker 地址，留空使用 .env 的 VITE_API_URL"
           clearable
         />
-        <div class="form-tip">用于临时切换测试环境，保存后立即生效。</div>
+        <div class="form-tip">
+          这里填你的 Worker 网关地址，不是模型厂商 API 地址。
+        </div>
+      </el-form-item>
+
+      <el-form-item label="AI Base URL">
+        <el-input
+          v-model="localApiBaseUrl"
+          placeholder="如: https://api.openai.com/v1/chat/completions"
+          clearable
+        />
+        <div class="form-tip">可选：覆盖 Worker 默认 API_BASE_URL。</div>
+      </el-form-item>
+
+      <el-form-item label="AI API Key">
+        <el-input
+          v-model="localApiKey"
+          :type="showApiKey ? 'text' : 'password'"
+          placeholder="可选：临时覆盖 Worker 默认 API_KEY"
+          clearable
+        >
+          <template #append>
+            <el-button @click="showApiKey = !showApiKey">
+              {{ showApiKey ? "隐藏" : "显示" }}
+            </el-button>
+          </template>
+        </el-input>
+        <div class="form-tip warning-tip">
+          安全提示：前端保存 Key 有泄露风险，仅建议开发调试时使用。
+        </div>
+      </el-form-item>
+
+      <el-form-item label="模型名称">
+        <el-input
+          v-model="localModelName"
+          placeholder="如: gpt-4o-mini / deepseek-chat"
+          clearable
+        />
       </el-form-item>
 
       <el-form-item label="历史记录">
@@ -53,12 +90,28 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  runtimeConfig: {
+    type: Object,
+    default: () => ({
+      apiBaseUrl: "",
+      apiKey: "",
+      modelName: "",
+    }),
+  },
 });
 
-const emit = defineEmits(["update-theme", "update-api-url"]);
+const emit = defineEmits([
+  "update-theme",
+  "update-api-url",
+  "update-runtime-config",
+]);
 
 const localTheme = ref(props.theme);
 const localApiUrl = ref(props.apiUrlOverride);
+const localApiBaseUrl = ref(props.runtimeConfig?.apiBaseUrl || "");
+const localApiKey = ref(props.runtimeConfig?.apiKey || "");
+const localModelName = ref(props.runtimeConfig?.modelName || "");
+const showApiKey = ref(false);
 const historyCount = ref(HistoryManager.getAll().length);
 
 watch(
@@ -73,6 +126,16 @@ watch(
   (val) => {
     localApiUrl.value = val;
   },
+);
+
+watch(
+  () => props.runtimeConfig,
+  (val) => {
+    localApiBaseUrl.value = val?.apiBaseUrl || "";
+    localApiKey.value = val?.apiKey || "";
+    localModelName.value = val?.modelName || "";
+  },
+  { deep: true },
 );
 
 const handleThemeChange = (theme) => {
@@ -101,14 +164,38 @@ const saveSettings = () => {
     "kc_analyzer_api_url_override",
     localApiUrl.value.trim(),
   );
+  localStorage.setItem(
+    "kc_analyzer_runtime_config",
+    JSON.stringify({
+      apiBaseUrl: localApiBaseUrl.value.trim(),
+      apiKey: localApiKey.value.trim(),
+      modelName: localModelName.value.trim(),
+    }),
+  );
+
   emit("update-api-url", localApiUrl.value.trim());
+  emit("update-runtime-config", {
+    apiBaseUrl: localApiBaseUrl.value.trim(),
+    apiKey: localApiKey.value.trim(),
+    modelName: localModelName.value.trim(),
+  });
+
   ElMessage.success("设置已保存");
 };
 
 const resetSettings = () => {
   localApiUrl.value = "";
+  localApiBaseUrl.value = "";
+  localApiKey.value = "";
+  localModelName.value = "";
   localStorage.removeItem("kc_analyzer_api_url_override");
+  localStorage.removeItem("kc_analyzer_runtime_config");
   emit("update-api-url", "");
+  emit("update-runtime-config", {
+    apiBaseUrl: "",
+    apiKey: "",
+    modelName: "",
+  });
 
   ThemeManager.setTheme(ThemeManager.THEMES.LIGHT);
   localTheme.value = ThemeManager.THEMES.LIGHT;
@@ -127,6 +214,10 @@ const resetSettings = () => {
   font-size: 12px;
   color: #909399;
   margin-top: 6px;
+}
+
+.warning-tip {
+  color: #e6a23c;
 }
 
 .history-row {

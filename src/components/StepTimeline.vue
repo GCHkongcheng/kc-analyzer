@@ -1,7 +1,7 @@
 <template>
   <el-card shadow="hover" class="timeline-card">
     <template #header>
-      <span>🔍 运行步骤推演 (代入实值)</span>
+      <span>🔍 {{ title }}</span>
       <el-tag type="success" style="float: right">{{ language }}</el-tag>
     </template>
 
@@ -13,12 +13,25 @@
         placement="top"
         type="primary"
       >
-        <el-card shadow="never" class="step-card">
+        <el-card
+          shadow="never"
+          class="step-card"
+          :class="{ 'return-step': isReturnStep(step) }"
+          :style="getStepStyle(step)"
+        >
           <h4>{{ step.action }}</h4>
           <p class="description">{{ step.description }}</p>
           <div class="meta-info">
             <el-tag size="small" type="warning" effect="plain">
               📍 代码: {{ step.line_number }}
+            </el-tag>
+            <el-tag
+              v-if="isCallStack && getDepth(step) > 0"
+              size="small"
+              type="info"
+              effect="plain"
+            >
+              depth: {{ getDepth(step) }}
             </el-tag>
             <div class="variables">
               <code>{{ step.variables }}</code>
@@ -31,7 +44,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from "vue";
+
+const props = defineProps({
   steps: {
     type: Array,
     required: true,
@@ -41,7 +56,36 @@ defineProps({
     type: String,
     default: "",
   },
+  title: {
+    type: String,
+    default: "运行步骤推演 (代入实值)",
+  },
+  renderType: {
+    type: String,
+    default: "timeline",
+  },
 });
+
+const isCallStack = computed(() => props.renderType === "call_stack");
+
+const getDepth = (step) => {
+  if (typeof step?.depth === "number") return Math.max(step.depth, 0);
+  const match = String(step?.variables || "").match(/depth\s*[:=]\s*(\d+)/i);
+  return match ? Math.max(Number(match[1]), 0) : 0;
+};
+
+const getStepStyle = (step) => {
+  if (!isCallStack.value) return {};
+  const depth = Math.min(getDepth(step), 8);
+  return {
+    marginLeft: `${depth * 18}px`,
+  };
+};
+
+const isReturnStep = (step) => {
+  const text = `${step?.action || ""} ${step?.description || ""}`;
+  return /return|回溯|退出递归|返回上层/i.test(text);
+};
 </script>
 
 <style scoped>
@@ -51,11 +95,16 @@ defineProps({
 
 .step-card {
   margin-bottom: 5px;
-  transition: all 0.2s;
+  transition: all 0.25s ease;
 }
 
 .step-card:hover {
   transform: translateX(5px);
+}
+
+.return-step {
+  border-left: 3px solid #67c23a;
+  background: linear-gradient(90deg, rgba(103, 194, 58, 0.08), transparent 30%);
 }
 
 .step-card h4 {

@@ -57,34 +57,76 @@
 
         <ComplexityMetric :complexity="resultData.complexity" />
 
-        <!-- 视图切换按钮 -->
-        <div class="view-switcher">
+        <!-- 视图切换按钮（仅多视图时展示） -->
+        <div v-if="showVisualizerTab" class="view-switcher">
           <el-radio-group v-model="currentView" size="default">
             <el-radio-button label="timeline">
               <el-icon><List /></el-icon>
-              执行步骤
+              {{ isCallStackType ? "调用栈" : "执行步骤" }}
             </el-radio-button>
-            <el-radio-button label="visualizer">
+            <el-radio-button v-if="showVisualizerTab" label="visualizer">
               <el-icon><VideoPlay /></el-icon>
-              动画演示
+              {{ visualizerTabLabel }}
             </el-radio-button>
           </el-radio-group>
+        </div>
+
+        <div v-else class="single-view-indicator">
+          <el-tag size="small" type="success" effect="light">
+            当前视图: {{ isCallStackType ? "调用栈" : "执行步骤" }}
+          </el-tag>
+        </div>
+
+        <div class="render-type-hint">
+          <el-tag size="small" effect="plain" type="info">
+            渲染类型: {{ resolvedRenderType }}
+          </el-tag>
         </div>
       </div>
 
       <!-- 数组可视化 -->
       <ArrayVisualizer
-        v-if="currentView === 'visualizer' && shouldShowVisualizer"
+        v-if="currentView === 'visualizer' && resolvedRenderType === 'array'"
         :steps="resultData.step_by_step"
         :initial-data="extractInitialData()"
         visualization-type="array"
       />
+
+      <GraphTreeRenderer
+        v-if="
+          currentView === 'visualizer' &&
+          (resolvedRenderType === 'tree' || resolvedRenderType === 'graph')
+        "
+        :render-type="resolvedRenderType"
+        :steps="resultData.step_by_step"
+        :visualization-data="resultData.visualization || null"
+      />
+
+      <el-alert
+        v-if="
+          currentView === 'visualizer' &&
+          !['array', 'tree', 'graph'].includes(resolvedRenderType)
+        "
+        type="info"
+        show-icon
+        :closable="false"
+        class="visualizer-notice"
+        title="该算法当前使用时间轴/调用栈可视化"
+      >
+        <template #default>
+          render_type 为 {{ resolvedRenderType }}，建议查看“{{
+            isCallStackType ? "调用栈" : "执行步骤"
+          }}”视图。
+        </template>
+      </el-alert>
 
       <!-- 执行步骤时间轴 -->
       <StepTimeline
         v-if="currentView === 'timeline'"
         :steps="resultData.step_by_step"
         :language="resultData.language"
+        :render-type="resolvedRenderType"
+        :title="isCallStackType ? '调用栈推演 (代入实值)' : '运行步骤推演 (代入实值)'"
       />
 
       <el-card shadow="hover" class="optimization-card">
@@ -117,6 +159,7 @@ import { ElMessage } from "element-plus";
 import ComplexityMetric from "./ComplexityMetric.vue";
 import StepTimeline from "./StepTimeline.vue";
 import ArrayVisualizer from "./ArrayVisualizer.vue";
+import GraphTreeRenderer from "./GraphTreeRenderer.vue";
 
 const props = defineProps({
   resultData: {
@@ -140,6 +183,45 @@ const loadingSteps = [
 const currentStep = ref(0);
 const loadingProgress = ref(0);
 const currentView = ref("timeline"); // timeline 或 visualizer
+
+const resolvedRenderType = computed(() => {
+  if (!props.resultData) return "timeline";
+  const type = props.resultData.render_type;
+  const allowed = ["array", "tree", "graph", "call_stack", "timeline"];
+  if (allowed.includes(type)) return type;
+
+  const steps = props.resultData.step_by_step || [];
+  const hasDepth = steps.some((step) => {
+    if (typeof step?.depth === "number") return true;
+    return /depth\s*[:=]\s*\d+/i.test(String(step?.variables || ""));
+  });
+  const hasArraySignals = steps.some((step) => {
+    return (
+      Array.isArray(step?.state) ||
+      Array.isArray(step?.elements) ||
+      /compare|swap|sort|排序|交换|比较/i.test(
+        `${step?.action || ""} ${step?.description || ""}`,
+      )
+    );
+  });
+
+  if (hasArraySignals) return "array";
+  if (hasDepth) return "call_stack";
+  return "timeline";
+});
+
+const showVisualizerTab = computed(() => {
+  return ["array", "tree", "graph"].includes(resolvedRenderType.value);
+});
+
+const visualizerTabLabel = computed(() => {
+  if (resolvedRenderType.value === "tree") return "树可视化";
+  if (resolvedRenderType.value === "graph") return "图可视化";
+  return "动画演示";
+});
+const isCallStackType = computed(
+  () => resolvedRenderType.value === "call_stack",
+);
 
 // 加载动画循环
 let stepInterval = null;
@@ -198,21 +280,10 @@ const getRatingType = (rating) => {
   return "info";
 };
 
-// 判断是否显示可视化组件
-const shouldShowVisualizer = computed(() => {
-  if (!props.resultData?.step_by_step) return false;
-
-  // 检查是否包含数组操作的关键词
-  const keywords = ["交换", "比较", "swap", "compare", "排序", "sort"];
-  const hasArrayOps = props.resultData.step_by_step.some((step) =>
-    keywords.some(
-      (keyword) =>
-        step.action?.toLowerCase().includes(keyword.toLowerCase()) ||
-        step.description?.toLowerCase().includes(keyword.toLowerCase()),
-    ),
-  );
-
-  return hasArrayOps;
+watch(showVisualizerTab, (enabled) => {
+  if (!enabled && currentView.value === "visualizer") {
+    currentView.value = "timeline";
+  }
 });
 
 // 提取初始数据
@@ -463,6 +534,22 @@ const copyAsText = async () => {
   margin: 20px 0;
   display: flex;
   justify-content: center;
+}
+
+.single-view-indicator {
+  margin: 12px 0 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.render-type-hint {
+  margin: 8px 0 2px;
+  display: flex;
+  justify-content: center;
+}
+
+.visualizer-notice {
+  margin: 8px 0 16px;
 }
 
 .view-switcher :deep(.el-radio-button) {

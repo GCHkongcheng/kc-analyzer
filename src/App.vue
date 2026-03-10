@@ -24,6 +24,15 @@
           <span class="btn-text">{{ isDark ? "浅色" : "深色" }}</span>
         </el-button>
         <el-button
+          type="warning"
+          plain
+          class="action-btn desktop-action"
+          @click="activeModule = 'settings'"
+        >
+          <el-icon><Setting /></el-icon>
+          <span class="btn-text">设置</span>
+        </el-button>
+        <el-button
           type="success"
           plain
           class="action-btn desktop-action"
@@ -44,6 +53,7 @@
               <el-dropdown-item command="theme">
                 {{ isDark ? "切换浅色" : "切换深色" }}
               </el-dropdown-item>
+              <el-dropdown-item command="settings">系统设置</el-dropdown-item>
               <el-dropdown-item command="about">关于</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -119,8 +129,10 @@
       <SystemSettings
         :theme="isDark ? 'dark' : 'light'"
         :api-url-override="apiUrlOverride"
+        :runtime-config="runtimeConfig"
         @update-theme="handleThemeFromSettings"
         @update-api-url="handleApiUrlUpdate"
+        @update-runtime-config="handleRuntimeConfigUpdate"
       />
     </section>
 
@@ -194,6 +206,22 @@ const activeModule = ref("workspace");
 const apiUrlOverride = ref(
   localStorage.getItem("kc_analyzer_api_url_override") || "",
 );
+const runtimeConfig = ref(
+  (() => {
+    try {
+      const raw = localStorage.getItem("kc_analyzer_runtime_config");
+      if (!raw) return { apiBaseUrl: "", apiKey: "", modelName: "" };
+      const parsed = JSON.parse(raw);
+      return {
+        apiBaseUrl: parsed?.apiBaseUrl || "",
+        apiKey: parsed?.apiKey || "",
+        modelName: parsed?.modelName || "",
+      };
+    } catch {
+      return { apiBaseUrl: "", apiKey: "", modelName: "" };
+    }
+  })(),
+);
 const apiUrl = computed(() => apiUrlOverride.value || ENV_API_URL);
 
 // 防抖定时器
@@ -233,7 +261,14 @@ const analyzeCode = async () => {
     const response = await fetch(apiUrl.value, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: codeContent.value }),
+      body: JSON.stringify({
+        code: codeContent.value,
+        runtimeConfig: {
+          apiBaseUrl: runtimeConfig.value.apiBaseUrl || "",
+          apiKey: runtimeConfig.value.apiKey || "",
+          modelName: runtimeConfig.value.modelName || "",
+        },
+      }),
     });
     const data = await response.json();
 
@@ -293,6 +328,14 @@ const handleApiUrlUpdate = (url) => {
   apiUrlOverride.value = url;
 };
 
+const handleRuntimeConfigUpdate = (config) => {
+  runtimeConfig.value = {
+    apiBaseUrl: config?.apiBaseUrl || "",
+    apiKey: config?.apiKey || "",
+    modelName: config?.modelName || "",
+  };
+};
+
 const handleMobileAction = (command) => {
   if (command === "history") {
     showHistory.value = true;
@@ -306,6 +349,11 @@ const handleMobileAction = (command) => {
 
   if (command === "about") {
     showAbout.value = true;
+    return;
+  }
+
+  if (command === "settings") {
+    activeModule.value = "settings";
   }
 };
 
