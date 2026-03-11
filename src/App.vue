@@ -1,7 +1,7 @@
 <template>
   <div class="analyzer-container">
     <div class="header-section">
-      <h2 class="page-title">🚀 AI 算法解析引擎</h2>
+      <h2 class="page-title">🚀 空城 算法解析引擎</h2>
       <div class="header-actions">
         <el-button
           type="primary"
@@ -74,10 +74,6 @@
       <el-menu-item index="library">
         <el-icon><Collection /></el-icon>
         算法库
-      </el-menu-item>
-      <el-menu-item index="settings">
-        <el-icon><Setting /></el-icon>
-        系统设置
       </el-menu-item>
     </el-menu>
 
@@ -168,7 +164,7 @@ import { ThemeManager } from "./utils/themeManager.js";
 // 从环境变量读取 API URL
 const ENV_API_URL =
   import.meta.env.VITE_API_URL ||
-  "https://kc-analyzer.gc2839474636.workers.dev";
+  "https://api2.283947.xyz";
 
 const codeContent = ref(`class Solution {
 public:

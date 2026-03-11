@@ -126,7 +126,9 @@
         :steps="resultData.step_by_step"
         :language="resultData.language"
         :render-type="resolvedRenderType"
-        :title="isCallStackType ? '调用栈推演 (代入实值)' : '运行步骤推演 (代入实值)'"
+        :title="
+          isCallStackType ? '调用栈推演 (代入实值)' : '运行步骤推演 (代入实值)'
+        "
       />
 
       <el-card shadow="hover" class="optimization-card">
