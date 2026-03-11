@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="关于 AI 算法解析引擎"
+    title="关于 空城 算法解析引擎"
     width="90%"
     :style="{ maxWidth: '600px' }"
     center
@@ -10,7 +10,7 @@
       <!-- Logo 和标题 -->
       <div class="about-header">
         <div class="about-logo">🚀</div>
-        <h2>AI 算法解析引擎</h2>
+        <h2>空城 算法解析引擎</h2>
         <el-tag type="success" effect="plain">v{{ version }}</el-tag>
       </div>
 
@@ -94,7 +94,7 @@
 
       <!-- 版权信息 -->
       <div class="about-footer">
-        <p>© 2026 AI 算法解析引擎</p>
+        <p>© 2026 空城 算法解析引擎</p>
         <p class="footer-sub">基于 AI 技术，专注算法学习与优化</p>
       </div>
     </div>

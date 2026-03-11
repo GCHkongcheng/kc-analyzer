@@ -120,6 +120,24 @@
         </template>
       </el-alert>
 
+      <el-card v-if="normalizedTestCase" shadow="hover" class="test-case-card">
+        <template #header>
+          <div class="test-case-header">🧪 测试用例</div>
+        </template>
+        <div class="test-case-content">
+          <p>
+            <strong>输入:</strong> <code>{{ normalizedTestCase.input }}</code>
+          </p>
+          <p>
+            <strong>预期输出:</strong>
+            <code>{{ normalizedTestCase.expectedOutput }}</code>
+          </p>
+          <p v-if="normalizedTestCase.explanation" class="test-case-explain">
+            {{ normalizedTestCase.explanation }}
+          </p>
+        </div>
+      </el-card>
+
       <!-- 执行步骤时间轴 -->
       <StepTimeline
         v-if="currentView === 'timeline'"
@@ -225,6 +243,24 @@ const isCallStackType = computed(
   () => resolvedRenderType.value === "call_stack",
 );
 
+const normalizedTestCase = computed(() => {
+  const raw = props.resultData?.test_case;
+  if (!raw || typeof raw !== "object") return null;
+
+  const input = String(raw.input || "").trim();
+  const expectedOutput = String(
+    raw.expected_output || raw.expectedOutput || raw.output || "",
+  ).trim();
+  const explanation = String(raw.explanation || "").trim();
+
+  if (!input && !expectedOutput && !explanation) return null;
+  return {
+    input: input || "-",
+    expectedOutput: expectedOutput || "-",
+    explanation,
+  };
+});
+
 // 加载动画循环
 let stepInterval = null;
 let progressInterval = null;
@@ -317,6 +353,17 @@ const generateMarkdown = () => {
   markdown += `- **时间复杂度**: ${complexity.time}\n`;
   markdown += `- **空间复杂度**: ${complexity.space}\n`;
   markdown += `- **说明**: ${complexity.explanation}\n\n`;
+
+  if (normalizedTestCase.value) {
+    markdown += `## 测试用例\n\n`;
+    markdown += `- **输入**: \`${normalizedTestCase.value.input}\`\n`;
+    markdown += `- **预期输出**: \`${normalizedTestCase.value.expectedOutput}\`\n`;
+    if (normalizedTestCase.value.explanation) {
+      markdown += `- **说明**: ${normalizedTestCase.value.explanation}\n`;
+    }
+    markdown += `\n`;
+  }
+
   markdown += `## 执行步骤\n\n`;
 
   step_by_step.forEach((step) => {
@@ -348,6 +395,17 @@ const generatePlainText = () => {
   text += `时间复杂度: ${complexity.time}\n`;
   text += `空间复杂度: ${complexity.space}\n`;
   text += `说明: ${complexity.explanation}\n\n`;
+
+  if (normalizedTestCase.value) {
+    text += `测试用例\n`;
+    text += `输入: ${normalizedTestCase.value.input}\n`;
+    text += `预期输出: ${normalizedTestCase.value.expectedOutput}\n`;
+    if (normalizedTestCase.value.explanation) {
+      text += `说明: ${normalizedTestCase.value.explanation}\n`;
+    }
+    text += `\n`;
+  }
+
   text += `执行步骤\n\n`;
 
   step_by_step.forEach((step) => {
@@ -530,6 +588,36 @@ const copyAsText = async () => {
 
 .optimization-card {
   margin-top: 16px;
+}
+
+.test-case-card {
+  margin-top: 16px;
+}
+
+.test-case-header {
+  font-weight: 600;
+}
+
+.test-case-content p {
+  margin: 0 0 10px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.test-case-content p:last-child {
+  margin-bottom: 0;
+}
+
+.test-case-content code {
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #303133;
+  word-break: break-all;
+}
+
+.test-case-explain {
+  color: #909399;
 }
 
 .view-switcher {
